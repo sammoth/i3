@@ -65,6 +65,7 @@
 #include "cmdparse.h"
 #include "xcursor.h"
 #include "resize.h"
+#include "tiling_drag.h"
 #include "sighandler.h"
 #include "move.h"
 #include "output.h"
