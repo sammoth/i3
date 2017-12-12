@@ -249,20 +249,26 @@ static int route_click(Con *con, xcb_button_press_event_t *event, const bool mod
         goto done;
     }
 
-    /* 2: focus this con. */
+    /* 2: floating modifier pressed, initiate a drag */
+    if (!config.disable_tiling_drag && mod_pressed && event->detail == XCB_BUTTON_INDEX_1 && !floatingcon) {
+        tiling_drag(con, event);
+        goto done;
+    }
+
+    /* 3: focus this con. */
     con_activate(con);
 
-    /* 3: For floating containers, we also want to raise them on click.
+    /* 4: For floating containers, we also want to raise them on click.
      * We will skip handling events on floating cons in fullscreen mode */
     Con *fs = con_get_fullscreen_covering_ws(ws);
     if (floatingcon != NULL && fs != con) {
-        /* 4: floating_modifier plus left mouse button drags */
+        /* 5: floating_modifier plus left mouse button drags */
         if (mod_pressed && event->detail == XCB_BUTTON_CLICK_LEFT) {
             floating_drag_window(floatingcon, event);
             return 1;
         }
 
-        /*  5: resize (floating) if this was a (left or right) click on the
+        /*  6: resize (floating) if this was a (left or right) click on the
          * left/right/bottom border, or a right click on the decoration.
          * also try resizing (tiling) if it was a click on the top */
         if (mod_pressed && event->detail == XCB_BUTTON_CLICK_RIGHT) {
@@ -291,7 +297,7 @@ static int route_click(Con *con, xcb_button_press_event_t *event, const bool mod
             return 1;
         }
 
-        /* 6: dragging, if this was a click on a decoration (which did not lead
+        /* 7: dragging, if this was a click on a decoration (which did not lead
          * to a resize) */
         if (!in_stacked && dest == CLICK_DECORATION &&
             (event->detail == XCB_BUTTON_CLICK_LEFT)) {
@@ -299,13 +305,6 @@ static int route_click(Con *con, xcb_button_press_event_t *event, const bool mod
             return 1;
         }
 
-        goto done;
-    }
-
-    /* 7: floating modifier pressed, initiate a drag */
-    if (!config.disable_tiling_drag && mod_pressed && event->detail == XCB_BUTTON_INDEX_1) {
-        DLOG("Trying to drag (tiling)\n");
-        tiling_drag(con, event);
         goto done;
     }
 
