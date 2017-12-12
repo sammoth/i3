@@ -302,21 +302,22 @@ static int route_click(Con *con, xcb_button_press_event_t *event, const bool mod
         goto done;
     }
 
+    /* 7: floating modifier pressed, initiate a drag */
+    if (dest == CLICK_INSIDE && mod_pressed && event->detail == XCB_BUTTON_INDEX_1) {
+        DLOG("Trying to drag (tiling)\n");
+        tiling_drag(con, event);
+    }
+
     if (in_stacked) {
         /* for stacked/tabbed cons, the resizing applies to the parent
          * container */
         con = con->parent;
     }
 
-    /* 7: floating modifier pressed, initiate a resize */
+    /* 8: floating modifier pressed, initiate a resize */
     if (dest == CLICK_INSIDE && mod_pressed && event->detail == XCB_BUTTON_CLICK_RIGHT) {
         if (floating_mod_on_tiled_client(con, event))
             return 1;
-    }
-    /* 8: floating modifier pressed, initiate a drag */
-    else if (dest == CLICK_INSIDE && mod_pressed && event->detail == XCB_BUTTON_INDEX_1) {
-        DLOG("Trying to drag (tiling)\n");
-        tiling_drag(con, event);
     }
     /* 9: otherwise, check for border/decoration clicks and resize */
     else if (dest == CLICK_BORDER && is_left_or_right_click) {
