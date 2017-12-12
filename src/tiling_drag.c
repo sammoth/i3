@@ -59,14 +59,7 @@ struct callback_params {
 DRAGGING_CB(drag_callback) {
     const struct callback_params *params = extra;
 
-    /* The threshold for the outer region. Drops in this region indicate the
-     * drop should move the window into the parent as a sibling in the given
-     * direction. */
-    static const uint32_t outer_threshold = 30;
-
     Con *target = find_drop_target(new_x, new_y);
-    direction_t direction = 0;
-    drop_type_t drop_type = DT_SPLIT;
 
     DLOG("new x = %d, y = %d, con = %p, target = %p\n", new_x, new_y, con, target);
     if (target == NULL)
@@ -79,6 +72,13 @@ DRAGGING_CB(drag_callback) {
      * border and highlight only that half of the target container.
      */
     Rect rect = target->rect;
+
+    /* The threshold for the outer region. Drops in this region indicate the
+     * drop should move the window into the parent as a sibling in the given
+     * direction. */
+    const uint32_t outer_threshold = max(1, (uint32_t)(0.3 * min(rect.width, rect.height)));
+    direction_t direction = 0;
+    drop_type_t drop_type = DT_SPLIT;
     if (target != con && target->type != CT_WORKSPACE) {
         uint32_t d_left = new_x - rect.x;
         uint32_t d_top = new_y - rect.y;
