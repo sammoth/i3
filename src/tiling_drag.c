@@ -8,6 +8,9 @@
  *
  */
 #include "all.h"
+static xcb_window_t create_drop_indicator(Rect rect);
+
+static bool initial_pos;
 
 /*
  * Return an appropriate target at given coordinates.
@@ -39,7 +42,7 @@ typedef enum { DT_SIBLING,
                DT_SPLIT } drop_type_t;
 
 struct callback_params {
-    xcb_window_t indicator;
+    xcb_window_t *indicator;
     Con **target;
     direction_t *direction;
     drop_type_t *drop_type;
@@ -68,6 +71,8 @@ DRAGGING_CB(drag_callback) {
     DLOG("new x = %d, y = %d, con = %p, target = %p\n", new_x, new_y, con, target);
     if (target == NULL)
         return;
+
+    initial_pos &= (con == target);
 
     /* If the target is the dragged container itself then we want to highlight
      * the whole container. Otherwise we determine the direction of the nearest
@@ -109,9 +114,15 @@ DRAGGING_CB(drag_callback) {
         }
     }
 
-    xcb_configure_window(conn, params->indicator,
-                         XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-                         &(rect.x));
+    if (!initial_pos) {
+        if (*(params->indicator) == 0) {
+            *(params->indicator) = create_drop_indicator(target->rect);
+        } else {
+            xcb_configure_window(conn, *(params->indicator),
+                                 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
+                                 &(rect.x));
+        }
+    }
     xcb_flush(conn);
 
     *(params->target) = target;
@@ -158,6 +169,7 @@ static xcb_window_t create_drop_indicator(Rect rect) {
  *
  */
 void tiling_drag(Con *con, xcb_button_press_event_t *event) {
+    initial_pos = true;
     DLOG("Start dragging tiled container: con = %p\n", con);
 
     /* Don't change focus while dragging. */
@@ -168,12 +180,13 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
     Con *target = NULL;
     direction_t direction;
     drop_type_t drop_type;
-    const struct callback_params params = {create_drop_indicator(con->rect), &target, &direction, &drop_type};
+    xcb_window_t indicator = 0;
+    const struct callback_params params = {&indicator, &target, &direction, &drop_type};
 
     drag_result_t drag_result = drag_pointer(con, event, XCB_NONE, BORDER_TOP, XCURSOR_CURSOR_MOVE, drag_callback, &params);
 
     /* Dragging is done. We don't need the indicator window any more. */
-    xcb_destroy_window(conn, params.indicator);
+    xcb_destroy_window(conn, indicator);
     xcb_flush(conn);
 
     /* Move the container to the drop position. */
