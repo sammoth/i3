@@ -207,10 +207,12 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
             position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
             insert_con_into(con, target, position);
 
-            /* TODO need to emit an event if we don't move out */
-
             if (move_out) {
                 tree_move(con, direction);
+            } else {
+                /* tree_move() sends the appropriate event itself but
+                 * insert_con_into() doesn't */
+                ipc_send_window_event("move", con);
             }
         }
         con_focus(con);
