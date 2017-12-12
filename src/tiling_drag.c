@@ -177,7 +177,7 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
     xcb_flush(conn);
 
     /* Move the container to the drop position. */
-    if (drag_result != DRAG_REVERT && target != NULL && target != con) {
+    if (drag_result != DRAG_REVERT && target != NULL && target != con && con_exists(target)) {
         if (target->type == CT_WORKSPACE) {
             con_move_to_workspace(con, target, true, false, false);
         } else if (drop_type == DT_SPLIT) {
