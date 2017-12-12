@@ -303,7 +303,7 @@ static int route_click(Con *con, xcb_button_press_event_t *event, const bool mod
     }
 
     /* 7: floating modifier pressed, initiate a drag */
-    if (dest == CLICK_INSIDE && mod_pressed && event->detail == XCB_BUTTON_INDEX_1) {
+    if ((dest == CLICK_INSIDE || dest == CLICK_DECORATION) && mod_pressed && event->detail == XCB_BUTTON_INDEX_1) {
         DLOG("Trying to drag (tiling)\n");
         tiling_drag(con, event);
     }
