@@ -10,8 +10,7 @@
 #include "all.h"
 
 /*
- * Returns the visible leaf container at the given coordinates or NULL if no
- * such container exists.
+ * Return an appropriate target at given coordinates.
  *
  */
 static Con *find_drop_target(uint32_t x, uint32_t y) {
@@ -24,7 +23,16 @@ static Con *find_drop_target(uint32_t x, uint32_t y) {
             !con_is_hidden(con))
             return con;
     }
-    return NULL;
+
+    /* Couldn't find leaf container, get a workspace. */
+    Output *output = get_output_containing(x, y);
+    if (!output) {
+        return NULL;
+    }
+    Con *content = output_get_content(output->con);
+    Con *ws = TAILQ_FIRST(&(content->focus_head));
+    /* Still descend because you can drag to the bar on an non-empty workspace. */
+    return con_descend_tiling_focused(ws);
 }
 
 typedef enum { DT_SIBLING,
@@ -64,12 +72,9 @@ DRAGGING_CB(drag_callback) {
     /* If the target is the dragged container itself then we want to highlight
      * the whole container. Otherwise we determine the direction of the nearest
      * border and highlight only that half of the target container.
-     *
-     * TODO(MForster): Support dropping on containers with tabbed or stacked
-     * layout as well as on empty outputs.
      */
     Rect rect = target->rect;
-    if (target != con) {
+    if (target != con && target->type != CT_WORKSPACE) {
         uint32_t d_left = new_x - rect.x;
         uint32_t d_top = new_y - rect.y;
         uint32_t d_right = rect.x + rect.width - new_x;
@@ -173,7 +178,9 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
 
     /* Move the container to the drop position. */
     if (drag_result != DRAG_REVERT && target != NULL && target != con) {
-        if (drop_type == DT_SPLIT) {
+        if (target->type == CT_WORKSPACE) {
+            con_move_to_workspace(con, target, true, false, false);
+        } else if (drop_type == DT_SPLIT) {
             con_move_to_target(con, target);
         } else if (drop_type == DT_SIBLING) {
             Con *parent = target->parent;
