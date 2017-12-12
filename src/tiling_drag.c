@@ -169,6 +169,7 @@ static xcb_window_t create_drop_indicator(Rect rect) {
  *
  */
 void tiling_drag(Con *con, xcb_button_press_event_t *event) {
+    bool set_focus = (con == focused);
     initial_pos = true;
     DLOG("Start dragging tiled container: con = %p\n", con);
 
@@ -215,7 +216,9 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
                 ipc_send_window_event("move", con);
             }
         }
-        con_focus(con);
+        if (set_focus) {
+            con_focus(con);
+        }
         tree_render();
     }
 }
