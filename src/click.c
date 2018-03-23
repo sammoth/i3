@@ -214,9 +214,6 @@ static int route_click(Con *con, xcb_button_press_event_t *event, const bool mod
             goto done;
     }
 
-    if (ws != focused_workspace)
-        workspace_show(ws);
-
     /* get the floating con */
     Con *floatingcon = con_inside_floating(con);
     const bool proportional = (event->state & XCB_KEY_BUT_MASK_SHIFT) == XCB_KEY_BUT_MASK_SHIFT;
@@ -256,6 +253,8 @@ static int route_click(Con *con, xcb_button_press_event_t *event, const bool mod
     }
 
     /* 3: focus this con. */
+    if (ws != focused_workspace)
+        workspace_show(ws);
     con_activate(con);
 
     /* 4: For floating containers, we also want to raise them on click.
