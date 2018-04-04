@@ -197,24 +197,16 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
         } else if (drop_type == DT_SPLIT) {
             con_move_to_target(con, target);
         } else if (drop_type == DT_SIBLING) {
-            Con *parent = target->parent;
-            orientation_t orientation = con_orientation(parent);
+            orientation_t orientation = (direction == D_UP || direction == D_DOWN) ? VERT : HORIZ;
 
-            /* move out if the move goes against the grain of the parent */
-            /* orientation */
-            bool move_out = (orientation == HORIZ && (direction == D_UP || direction == D_DOWN)) ||
-                            (orientation == VERT && (direction == D_LEFT || direction == D_RIGHT));
+            if (con_orientation(target->parent) != orientation) {
+                tree_split(target, orientation);
+            }
 
             position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
             insert_con_into(con, target, position);
 
-            if (move_out) {
-                tree_move(con, direction);
-            } else {
-                /* tree_move() sends the appropriate event itself but
-                 * insert_con_into() doesn't */
-                ipc_send_window_event("move", con);
-            }
+            ipc_send_window_event("move", con);
         }
         if (set_focus) {
             con_focus(con);
