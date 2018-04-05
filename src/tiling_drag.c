@@ -200,7 +200,16 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
             orientation_t orientation = (direction == D_UP || direction == D_DOWN) ? VERT : HORIZ;
 
             if (con_orientation(target->parent) != orientation) {
-                tree_split(target, orientation);
+                /* If con and target are the only children of the same parent,
+                 * we can just change the parent's layout manually and then move
+                 * con to the correct position. tree_split checks for a parent
+                 * with only one child so it would create a new parent with the
+                 * new layout. */
+                if (con->parent == target->parent && con_num_children(target->parent) == 2) {
+                    target->parent->layout = orientation == VERT ? L_SPLITV : L_SPLITH;
+                } else {
+                    tree_split(target, orientation);
+                }
             }
 
             position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
