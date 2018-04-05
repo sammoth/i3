@@ -18,6 +18,7 @@ static bool initial_pos;
  */
 static Con *find_drop_target(uint32_t x, uint32_t y) {
     Con *con;
+    /*TODO: also decoration*/
     TAILQ_FOREACH(con, &all_cons, all_cons) {
         if (rect_contains(con->rect, x, y) &&
             con_has_managed_window(con) &&
@@ -39,7 +40,9 @@ static Con *find_drop_target(uint32_t x, uint32_t y) {
 }
 
 typedef enum { DT_SIBLING,
-               DT_SPLIT } drop_type_t;
+               DT_SPLIT,
+               DT_PARENT
+} drop_type_t;
 
 struct callback_params {
     xcb_window_t *indicator;
@@ -47,6 +50,52 @@ struct callback_params {
     direction_t *direction;
     drop_type_t *drop_type;
 };
+
+static Rect adjust_rect(Rect rect, direction_t direction, uint32_t threshold) {
+    switch (direction) {
+        case D_LEFT:
+            rect.width = threshold;
+            break;
+        case D_UP:
+            rect.height = threshold;
+            break;
+        case D_RIGHT:
+            rect.x += (rect.width - threshold);
+            rect.width = threshold;
+            break;
+        case D_DOWN:
+            rect.y += (rect.height - threshold);
+            rect.height = threshold;
+            break;
+    }
+    return rect;
+}
+
+static orientation_t orientation_from_direction(direction_t direction) {
+    return (direction == D_LEFT || direction == D_RIGHT) ? HORIZ : VERT;
+}
+
+static bool con_on_side_of_parent(Con *con, direction_t direction) {
+    const orientation_t orientation = orientation_from_direction(direction);
+    direction_t reverse_direction;
+    switch (direction) {
+        case D_LEFT:
+            reverse_direction = D_RIGHT;
+            break;
+        case D_RIGHT:
+            reverse_direction = D_LEFT;
+            break;
+        case D_UP:
+            reverse_direction = D_DOWN;
+            break;
+        case D_DOWN:
+            reverse_direction = D_UP;
+            break;
+    }
+    return (con_orientation(con->parent) != orientation ||
+            con->parent->layout == L_STACKED || con->parent->layout == L_TABBED ||
+            con_descend_direction(con->parent, reverse_direction) == con);
+}
 
 /*
  * The callback that is executed on every mouse move while dragging. On each
@@ -73,50 +122,62 @@ DRAGGING_CB(drag_callback) {
      */
     Rect rect = target->rect;
 
-    /* The threshold for the outer region. Drops in this region indicate the
-     * drop should move the window into the parent as a sibling in the given
-     * direction. */
-    const uint32_t outer_threshold = max(1, (uint32_t)(0.3 * min(rect.width, rect.height)));
     direction_t direction = 0;
     drop_type_t drop_type = DT_SPLIT;
+    /* TODO: target == con && DT_PARENT */
     if (target != con && target->type != CT_WORKSPACE) {
+        /* The threshold for the outer region. Drops in this region indicate the
+         * drop should move the window into the parent as a sibling in the given
+         * direction. */
+        const uint32_t outer_threshold = max(1, (uint32_t)(0.3 * min(rect.width, rect.height)));
+        const uint32_t outer_threshold2 = max(1, (uint32_t)(0.15 * min(rect.width, rect.height)));
         uint32_t d_left = new_x - rect.x;
         uint32_t d_top = new_y - rect.y;
         uint32_t d_right = rect.x + rect.width - new_x;
         uint32_t d_bottom = rect.y + rect.height - new_y;
         uint32_t d_min = min(min(d_left, d_right), min(d_top, d_bottom));
 
-        drop_type = (d_min < outer_threshold ? DT_SIBLING : DT_SPLIT);
-
-        if (drop_type == DT_SPLIT) {
-            rect.x += outer_threshold;
-            rect.y += outer_threshold;
-            rect.width -= outer_threshold * 2;
-            rect.height -= outer_threshold * 2;
-        } else if (d_left == d_min) {
+        /*TODO: retest stack/tab*/
+        if (d_left == d_min) {
             direction = D_LEFT;
-
-            rect.width = outer_threshold;
         } else if (d_top == d_min) {
             direction = D_UP;
-
-            rect.height = outer_threshold;
         } else if (d_right == d_min) {
             direction = D_RIGHT;
-
-            rect.x += (rect.width - outer_threshold);
-            rect.width = outer_threshold;
         } else if (d_bottom == d_min) {
             direction = D_DOWN;
+        } else {
+            ELOG("min() is broken\n");
+            assert(false);
+        }
+        const bool target_parent = (d_min < outer_threshold2 &&
+                                    con_on_side_of_parent(target, direction));
+        drop_type = target_parent ? DT_PARENT : (d_min < outer_threshold ? DT_SIBLING : DT_SPLIT);
 
-            rect.y += (rect.height - outer_threshold);
-            rect.height = outer_threshold;
+        switch (drop_type) {
+            case DT_PARENT:;
+                Con *tmp = target;
+                while (tmp->parent->type != CT_OUTPUT && con_on_side_of_parent(tmp, direction)) {
+                    tmp = tmp->parent;
+                }
+                rect = adjust_rect(tmp->rect, direction, outer_threshold2);
+                break;
+            case DT_SPLIT:
+                rect = target->rect;
+                rect.x += outer_threshold;
+                rect.y += outer_threshold;
+                rect.width -= outer_threshold * 2;
+                rect.height -= outer_threshold * 2;
+                break;
+            case DT_SIBLING:
+                rect = adjust_rect(target->rect, direction, outer_threshold);
+                break;
         }
     }
 
     if (!initial_pos) {
         if (*(params->indicator) == 0) {
-            *(params->indicator) = create_drop_indicator(target->rect);
+            *(params->indicator) = create_drop_indicator(rect);
         } else {
             xcb_configure_window(conn, *(params->indicator),
                                  XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
@@ -192,13 +253,15 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
 
     /* Move the container to the drop position. */
     if (drag_result != DRAG_REVERT && target != NULL && target != con && con_exists(target)) {
+        const orientation_t orientation = (direction == D_UP || direction == D_DOWN) ? VERT : HORIZ;
+        const position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
+        const layout_t layout = orientation == VERT ? L_SPLITV : L_SPLITH;
+
         if (target->type == CT_WORKSPACE) {
             con_move_to_workspace(con, target, true, false, false);
         } else if (drop_type == DT_SPLIT) {
             con_move_to_target(con, target);
         } else if (drop_type == DT_SIBLING) {
-            orientation_t orientation = (direction == D_UP || direction == D_DOWN) ? VERT : HORIZ;
-
             if (con_orientation(target->parent) != orientation) {
                 /* If con and target are the only children of the same parent,
                  * we can just change the parent's layout manually and then move
@@ -206,16 +269,18 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
                  * with only one child so it would create a new parent with the
                  * new layout. */
                 if (con->parent == target->parent && con_num_children(target->parent) == 2) {
-                    target->parent->layout = orientation == VERT ? L_SPLITV : L_SPLITH;
+                    target->parent->layout = layout;
                 } else {
                     tree_split(target, orientation);
                 }
             }
 
-            position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
             insert_con_into(con, target, position);
 
             ipc_send_window_event("move", con);
+        } else if (drop_type == DT_PARENT) {
+            insert_con_into(con, target, position);
+            tree_move(con, direction);
         }
         if (set_focus) {
             con_focus(con);
