@@ -129,11 +129,11 @@ DRAGGING_CB(drag_callback) {
      * direction. */
     const uint32_t outer_threshold = max(1, (uint32_t)(0.3 * min(rect.width, rect.height)));
     const uint32_t outer_threshold2 = max(1, (uint32_t)(0.15 * min(rect.width, rect.height)));
-    uint32_t d_left = new_x - rect.x;
-    uint32_t d_top = new_y - rect.y;
-    uint32_t d_right = rect.x + rect.width - new_x;
-    uint32_t d_bottom = rect.y + rect.height - new_y;
-    uint32_t d_min = min(min(d_left, d_right), min(d_top, d_bottom));
+    const uint32_t d_left = new_x - rect.x;
+    const uint32_t d_top = new_y - rect.y;
+    const uint32_t d_right = rect.x + rect.width - new_x;
+    const uint32_t d_bottom = rect.y + rect.height - new_y;
+    const uint32_t d_min = min(min(d_left, d_right), min(d_top, d_bottom));
 
     /*TODO: retest stack/tab*/
     if (d_left == d_min) {
