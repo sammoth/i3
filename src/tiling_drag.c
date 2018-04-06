@@ -124,18 +124,18 @@ DRAGGING_CB(drag_callback) {
         goto create_indicator;
     }
 
-    /* The threshold for the outer region. Drops in this region indicate the
-     * drop should move the window into the parent as a sibling in the given
-     * direction. */
-    const uint32_t outer_threshold = max(1, (uint32_t)(0.3 * min(rect.width, rect.height)));
-    const uint32_t outer_threshold2 = max(1, (uint32_t)(0.15 * min(rect.width, rect.height)));
+    /* Define the thresholds in pixels. The drop type depends on the cursor
+     * position. */
+    const uint32_t min_rect_dimension = min(rect.width, rect.height);
+    const uint32_t sibling_threshold = max(1, (uint32_t)(0.3 * min_rect_dimension));
+    const uint32_t parent_threshold = max(1, min(render_deco_height() + 5, (uint32_t)(0.15 * min_rect_dimension)));
+    /* Find which edge the cursor is closer to. */
     const uint32_t d_left = new_x - rect.x;
     const uint32_t d_top = new_y - rect.y;
     const uint32_t d_right = rect.x + rect.width - new_x;
     const uint32_t d_bottom = rect.y + rect.height - new_y;
     const uint32_t d_min = min(min(d_left, d_right), min(d_top, d_bottom));
-
-    /*TODO: retest stack/tab*/
+    /* And move the container towards that direction. */
     if (d_left == d_min) {
         direction = D_LEFT;
     } else if (d_top == d_min) {
@@ -148,10 +148,10 @@ DRAGGING_CB(drag_callback) {
         ELOG("min() is broken\n");
         assert(false);
     }
-    const bool target_parent = (d_min < outer_threshold2 &&
+    const bool target_parent = (d_min < parent_threshold &&
                                 con_on_side_of_parent(target, direction));
-    drop_type = target_parent ? DT_PARENT : (d_min < outer_threshold ? DT_SIBLING : DT_SPLIT);
-    /* target == con makes sense only when we are moving away from our parent. */
+    drop_type = target_parent ? DT_PARENT : (d_min < sibling_threshold ? DT_SIBLING : DT_SPLIT);
+    /* target == con makes sense only when we are moving away from target's parent. */
     if (drop_type != DT_PARENT && target == con) {
         draw_window = false;
         xcb_destroy_window(conn, *(params->indicator));
@@ -165,17 +165,17 @@ DRAGGING_CB(drag_callback) {
             while (tmp->parent->type != CT_OUTPUT && con_on_side_of_parent(tmp, direction)) {
                 tmp = tmp->parent;
             }
-            rect = adjust_rect(tmp->rect, direction, outer_threshold2);
+            rect = adjust_rect(tmp->rect, direction, parent_threshold);
             break;
         case DT_SPLIT:
             rect = target->rect;
-            rect.x += outer_threshold;
-            rect.y += outer_threshold;
-            rect.width -= outer_threshold * 2;
-            rect.height -= outer_threshold * 2;
+            rect.x += sibling_threshold;
+            rect.y += sibling_threshold;
+            rect.width -= sibling_threshold * 2;
+            rect.height -= sibling_threshold * 2;
             break;
         case DT_SIBLING:
-            rect = adjust_rect(target->rect, direction, outer_threshold);
+            rect = adjust_rect(target->rect, direction, sibling_threshold);
             break;
     }
 
