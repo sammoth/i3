@@ -160,12 +160,11 @@ DRAGGING_CB(drag_callback) {
     }
 
     switch (drop_type) {
-        case DT_PARENT:;
-            Con *tmp = target;
-            while (tmp->parent->type != CT_OUTPUT && con_on_side_of_parent(tmp, direction)) {
-                tmp = tmp->parent;
+        case DT_PARENT:
+            while (target->parent->type != CT_WORKSPACE && con_on_side_of_parent(target->parent, direction)) {
+                target = target->parent;
             }
-            rect = adjust_rect(tmp->rect, direction, parent_threshold);
+            rect = adjust_rect(target->parent->rect, direction, parent_threshold);
             break;
         case DT_SPLIT:
             rect = target->rect;
@@ -259,7 +258,7 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
     xcb_flush(conn);
 
     /* Move the container to the drop position. */
-    if (drag_result != DRAG_REVERT && target != NULL && target != con && con_exists(target)) {
+    if (drag_result != DRAG_REVERT && target != NULL && (target != con || drop_type == DT_PARENT) && con_exists(target)) {
         const orientation_t orientation = (direction == D_UP || direction == D_DOWN) ? VERT : HORIZ;
         const position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
         const layout_t layout = orientation == VERT ? L_SPLITV : L_SPLITH;
@@ -286,7 +285,9 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
 
             ipc_send_window_event("move", con);
         } else if (drop_type == DT_PARENT) {
-            insert_con_into(con, target, position);
+            if (con != target) {
+                insert_con_into(con, target, position);
+            }
             tree_move(con, direction);
         }
         if (set_focus) {
