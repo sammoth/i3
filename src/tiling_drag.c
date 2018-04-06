@@ -179,9 +179,12 @@ DRAGGING_CB(drag_callback) {
         if (*(params->indicator) == 0) {
             *(params->indicator) = create_drop_indicator(rect);
         } else {
-            xcb_configure_window(conn, *(params->indicator),
-                                 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
-                                 &(rect.x));
+            const uint32_t values[4] = {rect.x, rect.y, rect.width, rect.height};
+            const uint32_t mask = XCB_CONFIG_WINDOW_X |
+                                  XCB_CONFIG_WINDOW_Y |
+                                  XCB_CONFIG_WINDOW_WIDTH |
+                                  XCB_CONFIG_WINDOW_HEIGHT;
+            xcb_configure_window(conn, *(params->indicator), mask, values);
         }
     }
     xcb_flush(conn);
