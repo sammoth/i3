@@ -10,8 +10,6 @@
 #include "all.h"
 static xcb_window_t create_drop_indicator(Rect rect);
 
-static bool initial_pos;
-
 /*
  * Return an appropriate target at given coordinates.
  *
@@ -114,68 +112,75 @@ DRAGGING_CB(drag_callback) {
     if (target == NULL)
         return;
 
-    initial_pos &= (con == target);
-
     /* If the target is the dragged container itself then we want to highlight
      * the whole container. Otherwise we determine the direction of the nearest
-     * border and highlight only that half of the target container.
-     */
+     * border and highlight only that half of the target container. */
     Rect rect = target->rect;
-
     direction_t direction = 0;
     drop_type_t drop_type = DT_SPLIT;
-    /* TODO: target == con && DT_PARENT */
-    if (target != con && target->type != CT_WORKSPACE) {
-        /* The threshold for the outer region. Drops in this region indicate the
-         * drop should move the window into the parent as a sibling in the given
-         * direction. */
-        const uint32_t outer_threshold = max(1, (uint32_t)(0.3 * min(rect.width, rect.height)));
-        const uint32_t outer_threshold2 = max(1, (uint32_t)(0.15 * min(rect.width, rect.height)));
-        uint32_t d_left = new_x - rect.x;
-        uint32_t d_top = new_y - rect.y;
-        uint32_t d_right = rect.x + rect.width - new_x;
-        uint32_t d_bottom = rect.y + rect.height - new_y;
-        uint32_t d_min = min(min(d_left, d_right), min(d_top, d_bottom));
+    bool draw_window = true;
 
-        /*TODO: retest stack/tab*/
-        if (d_left == d_min) {
-            direction = D_LEFT;
-        } else if (d_top == d_min) {
-            direction = D_UP;
-        } else if (d_right == d_min) {
-            direction = D_RIGHT;
-        } else if (d_bottom == d_min) {
-            direction = D_DOWN;
-        } else {
-            ELOG("min() is broken\n");
-            assert(false);
-        }
-        const bool target_parent = (d_min < outer_threshold2 &&
-                                    con_on_side_of_parent(target, direction));
-        drop_type = target_parent ? DT_PARENT : (d_min < outer_threshold ? DT_SIBLING : DT_SPLIT);
-
-        switch (drop_type) {
-            case DT_PARENT:;
-                Con *tmp = target;
-                while (tmp->parent->type != CT_OUTPUT && con_on_side_of_parent(tmp, direction)) {
-                    tmp = tmp->parent;
-                }
-                rect = adjust_rect(tmp->rect, direction, outer_threshold2);
-                break;
-            case DT_SPLIT:
-                rect = target->rect;
-                rect.x += outer_threshold;
-                rect.y += outer_threshold;
-                rect.width -= outer_threshold * 2;
-                rect.height -= outer_threshold * 2;
-                break;
-            case DT_SIBLING:
-                rect = adjust_rect(target->rect, direction, outer_threshold);
-                break;
-        }
+    if (target->type == CT_WORKSPACE) {
+        goto create_indicator;
     }
 
-    if (!initial_pos) {
+    /* The threshold for the outer region. Drops in this region indicate the
+     * drop should move the window into the parent as a sibling in the given
+     * direction. */
+    const uint32_t outer_threshold = max(1, (uint32_t)(0.3 * min(rect.width, rect.height)));
+    const uint32_t outer_threshold2 = max(1, (uint32_t)(0.15 * min(rect.width, rect.height)));
+    uint32_t d_left = new_x - rect.x;
+    uint32_t d_top = new_y - rect.y;
+    uint32_t d_right = rect.x + rect.width - new_x;
+    uint32_t d_bottom = rect.y + rect.height - new_y;
+    uint32_t d_min = min(min(d_left, d_right), min(d_top, d_bottom));
+
+    /*TODO: retest stack/tab*/
+    if (d_left == d_min) {
+        direction = D_LEFT;
+    } else if (d_top == d_min) {
+        direction = D_UP;
+    } else if (d_right == d_min) {
+        direction = D_RIGHT;
+    } else if (d_bottom == d_min) {
+        direction = D_DOWN;
+    } else {
+        ELOG("min() is broken\n");
+        assert(false);
+    }
+    const bool target_parent = (d_min < outer_threshold2 &&
+                                con_on_side_of_parent(target, direction));
+    drop_type = target_parent ? DT_PARENT : (d_min < outer_threshold ? DT_SIBLING : DT_SPLIT);
+    /* target == con makes sense only when we are moving away from our parent. */
+    if (drop_type != DT_PARENT && target == con) {
+        draw_window = false;
+        xcb_destroy_window(conn, *(params->indicator));
+        *(params->indicator) = 0;
+        goto create_indicator;
+    }
+
+    switch (drop_type) {
+        case DT_PARENT:;
+            Con *tmp = target;
+            while (tmp->parent->type != CT_OUTPUT && con_on_side_of_parent(tmp, direction)) {
+                tmp = tmp->parent;
+            }
+            rect = adjust_rect(tmp->rect, direction, outer_threshold2);
+            break;
+        case DT_SPLIT:
+            rect = target->rect;
+            rect.x += outer_threshold;
+            rect.y += outer_threshold;
+            rect.width -= outer_threshold * 2;
+            rect.height -= outer_threshold * 2;
+            break;
+        case DT_SIBLING:
+            rect = adjust_rect(target->rect, direction, outer_threshold);
+            break;
+    }
+
+create_indicator:
+    if (draw_window) {
         if (*(params->indicator) == 0) {
             *(params->indicator) = create_drop_indicator(rect);
         } else {
@@ -234,7 +239,6 @@ static xcb_window_t create_drop_indicator(Rect rect) {
  */
 void tiling_drag(Con *con, xcb_button_press_event_t *event) {
     bool set_focus = (con == focused);
-    initial_pos = true;
     DLOG("Start dragging tiled container: con = %p\n", con);
 
     /* Don't change focus while dragging. */
