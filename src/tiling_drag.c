@@ -264,8 +264,7 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
         return;
     }
 
-    /* Move the container to the drop position. */
-    const orientation_t orientation = (direction == D_UP || direction == D_DOWN) ? VERT : HORIZ;
+    const orientation_t orientation = orientation_from_direction(direction);
     const position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
     const layout_t layout = orientation == VERT ? L_SPLITV : L_SPLITH;
 
