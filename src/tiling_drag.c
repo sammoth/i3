@@ -257,42 +257,46 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
     xcb_destroy_window(conn, indicator);
     xcb_flush(conn);
 
-    /* Move the container to the drop position. */
-    if (drag_result != DRAG_REVERT && target != NULL && (target != con || drop_type == DT_PARENT) && con_exists(target)) {
-        const orientation_t orientation = (direction == D_UP || direction == D_DOWN) ? VERT : HORIZ;
-        const position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
-        const layout_t layout = orientation == VERT ? L_SPLITV : L_SPLITH;
-
-        if (target->type == CT_WORKSPACE) {
-            con_move_to_workspace(con, target, true, false, false);
-        } else if (drop_type == DT_SPLIT) {
-            con_move_to_target(con, target);
-        } else if (drop_type == DT_SIBLING) {
-            if (con_orientation(target->parent) != orientation) {
-                /* If con and target are the only children of the same parent,
-                 * we can just change the parent's layout manually and then move
-                 * con to the correct position. tree_split checks for a parent
-                 * with only one child so it would create a new parent with the
-                 * new layout. */
-                if (con->parent == target->parent && con_num_children(target->parent) == 2) {
-                    target->parent->layout = layout;
-                } else {
-                    tree_split(target, orientation);
-                }
-            }
-
-            insert_con_into(con, target, position);
-
-            ipc_send_window_event("move", con);
-        } else if (drop_type == DT_PARENT) {
-            if (con != target) {
-                insert_con_into(con, target, position);
-            }
-            tree_move(con, direction);
-        }
-        if (set_focus) {
-            con_focus(con);
-        }
-        tree_render();
+    if (drag_result == DRAG_REVERT ||
+        target == NULL ||
+        (target == con && drop_type != DT_PARENT) ||
+        !con_exists(target)) {
+        return;
     }
+
+    /* Move the container to the drop position. */
+    const orientation_t orientation = (direction == D_UP || direction == D_DOWN) ? VERT : HORIZ;
+    const position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
+    const layout_t layout = orientation == VERT ? L_SPLITV : L_SPLITH;
+
+    if (target->type == CT_WORKSPACE) {
+        con_move_to_workspace(con, target, true, false, false);
+    } else if (drop_type == DT_SPLIT) {
+        con_move_to_target(con, target);
+    } else if (drop_type == DT_SIBLING) {
+        if (con_orientation(target->parent) != orientation) {
+            /* If con and target are the only children of the same parent, we can just change the
+             * parent's layout manually and then move con to the correct position. tree_split checks
+             * for a parent with only one child so it would create a new parent with the new layout.
+             */
+            if (con->parent == target->parent && con_num_children(target->parent) == 2) {
+                target->parent->layout = layout;
+            } else {
+                tree_split(target, orientation);
+            }
+        }
+
+        insert_con_into(con, target, position);
+
+        ipc_send_window_event("move", con);
+    } else if (drop_type == DT_PARENT) {
+        if (con != target) {
+            insert_con_into(con, target, position);
+        }
+        tree_move(con, direction);
+    }
+    if (set_focus) {
+        con_focus(con);
+    }
+    tree_render();
 }
