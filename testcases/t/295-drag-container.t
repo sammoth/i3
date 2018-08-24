@@ -15,7 +15,11 @@
 #   (unless you are already familiar with Perl)
 #
 # Test dragging containers.
-use i3test i3_config => <<EOT;
+
+my ($width, $height) = (1000, 500);
+
+# use i3test i3_config => <<"EOT";
+my $config = <<"EOT";
 # i3 config file (v4)
 font -misc-fixed-medium-r-normal--13-120-75-75-C-70-iso10646-1
 
@@ -23,16 +27,19 @@ focus_follows_mouse no
 floating_modifier Mod1
 
 # 2 side by side outputs
-fake-outputs 1000x500+0+0P,1000x500+1000+0
+fake-outputs ${width}x${height}+0+0,${width}x${height}+${width}+0
 
 bar {
     output primary
 }
 EOT
+use i3test i3_autostart => 0;
 use i3test::XTEST;
+my $pid = launch_with_config($config);
 
 sub start_drag {
     my ($pos_x, $pos_y) = @_;
+    die "Drag outside of bounds!" unless $pos_x < $width * 2 && $pos_y < $height;
 
     $x->root->warp_pointer($pos_x, $pos_y);
     sync_with_i3;
@@ -44,6 +51,7 @@ sub start_drag {
 
 sub end_drag {
     my ($pos_x, $pos_y) = @_;
+    die "Drag outside of bounds!" unless $pos_x < $width * 2 && $pos_y < $height;
 
     $x->root->warp_pointer($pos_x, $pos_y);
     sync_with_i3;
