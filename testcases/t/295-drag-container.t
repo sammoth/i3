@@ -54,7 +54,7 @@ sub end_drag {
 }
 
 my ($ws1, $ws2);
-my ($A, $B);
+my ($A, $B, $tmp);
 
 ###############################################################################
 # Drag floating container onto an empty workspace.
@@ -199,5 +199,69 @@ is($ws2, focused_ws, 'Workspace remained focused after dragging unfocused contai
 $ws2 = get_ws($ws2);
 is($ws2->{focus}[0], $B, 'B focused first, kept focus');
 is($ws2->{focus}[1], $A, 'A focused second, unfocused container didn\'t steal focus');
+
+###############################################################################
+# Drag fullscreen container onto window in same workspace.
+###############################################################################
+
+$ws1 = fresh_workspace(output => 0);
+open_window;
+open_window;
+cmd 'fullscreen enable';
+$A = get_focused($ws1);
+
+start_drag(900, 100);  # Second window
+end_drag(50, 50);  # To first window
+
+is($ws1, focused_ws, 'Workspace remained focused after dragging fullscreen container');
+is_num_fullscreen($ws1, 1, 'Container still fullscreened');
+is(get_focused($ws1), $A, 'Fullscreen container still focused');
+
+###############################################################################
+# Drag unfocused fullscreen container onto window in other workspace.
+###############################################################################
+
+$ws1 = fresh_workspace(output => 0);
+$A = open_window;
+cmd 'fullscreen enable';
+$ws2 = fresh_workspace(output => 1);
+open_window;
+open_window;
+
+start_drag(900, 100);
+end_drag(1000 + 500 * 0.15 + 10, 200);  # left of leftmost window
+
+is($ws2, focused_ws, 'Workspace still focused after dragging fullscreen container to it');
+is_num_fullscreen($ws1, 0, 'No fullscreen container in first workspace');
+is_num_fullscreen($ws2, 1, 'Moved container still fullscreened');
+is($x->input_focus, $A->id, 'Fullscreen container now focused');
+$ws2 = get_ws($ws2);
+is($ws2->{nodes}->[0]->{window}, $A->id, 'Fullscreen container now leftmost window in second workspace');
+
+###############################################################################
+# Drag unfocused fullscreen container onto left outter region of window in
+# other workspace. The container shouldn't end up in $ws2 because it was
+# dragged onto the outter region of the leftmost window. We must also check
+# that the focus remains on the other window.
+###############################################################################
+
+$ws1 = fresh_workspace(output => 0);
+open_window for (1..3);
+$A = open_window;
+$tmp = get_focused($ws1);
+cmd 'fullscreen enable';
+$ws2 = fresh_workspace(output => 1);
+$B = open_window;
+
+start_drag(990, 100);  # rightmost of $ws1
+end_drag(1004, 100);  # outter region of window of $ws2
+
+is($ws2, focused_ws, 'Workspace still focused after dragging fullscreen container to it');
+is_num_fullscreen($ws1, 1, 'Fullscreen container still in first workspace');
+is_num_fullscreen($ws2, 0, 'No fullscreen container in second workspace');
+is($x->input_focus, $B->id, 'Window of second workspace still has focus');
+is(get_focused($ws1), $tmp, 'Fullscreen container still focused in first workspace');
+$ws1 = get_ws($ws1);
+is($ws1->{nodes}->[3]->{window}, $A->id, 'Fullscreen container still rightmost window in first workspace');
 
 done_testing;
