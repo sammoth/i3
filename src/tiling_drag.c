@@ -21,9 +21,14 @@ static Con *find_drop_target(uint32_t x, uint32_t y) {
         if (rect_contains(con->rect, x, y) &&
             con_has_managed_window(con) &&
             !con_is_floating(con) &&
-            workspace_is_visible(con_get_workspace(con)) &&
-            !con_is_hidden(con))
-            return con;
+            !con_is_hidden(con)) {
+            Con *ws = con_get_workspace(con);
+            if (!workspace_is_visible(ws)) {
+                continue;
+            }
+            Con *fs = con_get_fullscreen_covering_ws(ws);
+            return fs ? fs : con;
+        }
     }
 
     /* Couldn't find leaf container, get a workspace. */
