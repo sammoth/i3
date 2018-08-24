@@ -234,8 +234,9 @@ static xcb_window_t create_drop_indicator(Rect rect) {
  *
  */
 void tiling_drag(Con *con, xcb_button_press_event_t *event) {
-    bool set_focus = (con == focused);
     DLOG("Start dragging tiled container: con = %p\n", con);
+    bool set_focus = (con == focused);
+    bool set_fs = con->fullscreen_mode != CF_NONE;
 
     /* Don't change focus while dragging. */
     x_mask_event_mask(~XCB_EVENT_MASK_ENTER_WINDOW);
@@ -263,7 +264,7 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
     const orientation_t orientation = orientation_from_direction(direction);
     const position_t position = (direction == D_LEFT || direction == D_UP ? BEFORE : AFTER);
     const layout_t layout = orientation == VERT ? L_SPLITV : L_SPLITH;
-
+    con_disable_fullscreen(con);
     switch (drop_type) {
         case DT_SPLIT:
             /* Also handles workspaces.*/
@@ -290,10 +291,36 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
             if (con != target) {
                 insert_con_into(con, target, position);
             }
+            /* tree_move can change the focus */
+            Con *old_focus = focused;
             tree_move(con, direction);
+            if (focused != old_focus) {
+                con_activate(old_focus);
+            }
             break;
     }
 
+    /* Manage fullscreen status. */
+    if (set_focus || set_fs) {
+        Con *fs = con_get_fullscreen_covering_ws(con_get_workspace(target));
+        if (fs == con) {
+            ELOG("dragged container somehow got fullscreen again.\n");
+            assert(false);
+        } else if (fs && set_focus && set_fs) {
+            /* con was focused & fullscreen, disable other fullscreen container. */
+            con_disable_fullscreen(fs);
+        } else if (fs) {
+            /* con was not focused, prefer other fullscreen container. */
+            set_fs = set_focus = false;
+        } else if (!set_focus) {
+            /* con was not focused. If it was fullscreen and we are moving it to the focused
+             * workspace we must focus it. */
+            set_focus = (set_fs && con_get_workspace(focused) == con_get_workspace(con));
+        }
+    }
+    if (set_fs) {
+        con_enable_fullscreen(con, CF_OUTPUT);
+    }
     if (set_focus) {
         con_focus(con);
     }
