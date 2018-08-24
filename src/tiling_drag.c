@@ -69,10 +69,6 @@ static Rect adjust_rect(Rect rect, direction_t direction, uint32_t threshold) {
     return rect;
 }
 
-static orientation_t orientation_from_direction(direction_t direction) {
-    return (direction == D_LEFT || direction == D_RIGHT) ? HORIZ : VERT;
-}
-
 static bool con_on_side_of_parent(Con *con, direction_t direction) {
     const orientation_t orientation = orientation_from_direction(direction);
     direction_t reverse_direction;
