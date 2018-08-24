@@ -272,4 +272,36 @@ is(get_focused($ws1), $tmp, 'Fullscreen container still focused in first workspa
 $ws1 = get_ws($ws1);
 is($ws1->{nodes}->[3]->{window}, $A->id, 'Fullscreen container still rightmost window in first workspace');
 
+###############################################################################
+# Disable tiling drag through the config option.
+###############################################################################
+
+exit_gracefully($pid);
+
+$config = <<"EOT";
+# i3 config file (v4)
+font -misc-fixed-medium-r-normal--13-120-75-75-C-70-iso10646-1
+
+focus_follows_mouse no
+tiling_drag no
+floating_modifier Mod1
+
+fake-outputs ${width}x${height}+0+0,${width}x${height}+${width}+0
+EOT
+$pid = launch_with_config($config);
+
+$ws2 = fresh_workspace(output => 1);
+$ws1 = fresh_workspace(output => 0);
+open_window;
+$A = get_focused($ws1);
+
+start_drag(50, 50);
+end_drag(1050, 50);
+
+is(get_focused($ws1), $A, 'Tiling window still in first workspace after tiling drag disabled');
+
+exit_gracefully($pid);
+
+###############################################################################
+
 done_testing;
