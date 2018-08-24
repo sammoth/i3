@@ -42,7 +42,7 @@ static Con *find_drop_target(uint32_t x, uint32_t y) {
 }
 
 typedef enum { DT_SIBLING,
-               DT_SPLIT,
+               DT_CENTER,
                DT_PARENT
 } drop_type_t;
 
@@ -114,7 +114,7 @@ DRAGGING_CB(drag_callback) {
      * border and highlight only that half of the target container. */
     Rect rect = target->rect;
     direction_t direction = 0;
-    drop_type_t drop_type = DT_SPLIT;
+    drop_type_t drop_type = DT_CENTER;
     bool draw_window = true;
     const struct callback_params *params = extra;
 
@@ -148,7 +148,7 @@ DRAGGING_CB(drag_callback) {
     }
     const bool target_parent = (d_min < parent_threshold &&
                                 con_on_side_of_parent(target, direction));
-    drop_type = target_parent ? DT_PARENT : (d_min < sibling_threshold ? DT_SIBLING : DT_SPLIT);
+    drop_type = target_parent ? DT_PARENT : (d_min < sibling_threshold ? DT_SIBLING : DT_CENTER);
     /* target == con makes sense only when we are moving away from target's parent. */
     if (drop_type != DT_PARENT && target == con) {
         draw_window = false;
@@ -164,7 +164,7 @@ DRAGGING_CB(drag_callback) {
             }
             rect = adjust_rect(target->parent->rect, direction, parent_threshold);
             break;
-        case DT_SPLIT:
+        case DT_CENTER:
             rect = target->rect;
             rect.x += sibling_threshold;
             rect.y += sibling_threshold;
@@ -266,7 +266,7 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
     const layout_t layout = orientation == VERT ? L_SPLITV : L_SPLITH;
     con_disable_fullscreen(con);
     switch (drop_type) {
-        case DT_SPLIT:
+        case DT_CENTER:
             /* Also handles workspaces.*/
             con_move_to_target(con, target);
             break;
