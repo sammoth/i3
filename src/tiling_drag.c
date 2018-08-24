@@ -37,9 +37,8 @@ static Con *find_drop_target(uint32_t x, uint32_t y) {
         return NULL;
     }
     Con *content = output_get_content(output->con);
-    Con *ws = TAILQ_FIRST(&(content->focus_head));
     /* Still descend because you can drag to the bar on an non-empty workspace. */
-    return con_descend_tiling_focused(ws);
+    return con_descend_tiling_focused(content);
 }
 
 typedef enum { DT_SIBLING,
@@ -105,13 +104,10 @@ static bool con_on_side_of_parent(Con *con, direction_t direction) {
  *
  */
 DRAGGING_CB(drag_callback) {
-    const struct callback_params *params = extra;
-
     Con *target = find_drop_target(new_x, new_y);
-
-    DLOG("new x = %d, y = %d, con = %p, target = %p\n", new_x, new_y, con, target);
-    if (target == NULL)
+    if (target == NULL) {
         return;
+    }
 
     /* If the target is the dragged container itself then we want to highlight
      * the whole container. Otherwise we determine the direction of the nearest
@@ -120,6 +116,7 @@ DRAGGING_CB(drag_callback) {
     direction_t direction = 0;
     drop_type_t drop_type = DT_SPLIT;
     bool draw_window = true;
+    const struct callback_params *params = extra;
 
     if (target->type == CT_WORKSPACE) {
         goto create_indicator;
@@ -228,7 +225,6 @@ static xcb_window_t create_drop_indicator(Rect rect) {
                         "i3-drag\0i3-drag\0");
     xcb_map_window(conn, indicator);
     xcb_circulate_window(conn, XCB_CIRCULATE_RAISE_LOWEST, indicator);
-    xcb_flush(conn);
 
     return indicator;
 }
@@ -256,7 +252,6 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
 
     /* Dragging is done. We don't need the indicator window any more. */
     xcb_destroy_window(conn, indicator);
-    xcb_flush(conn);
 
     if (drag_result == DRAG_REVERT ||
         target == NULL ||
