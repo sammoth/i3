@@ -63,6 +63,17 @@ sub end_drag {
 
 my ($ws1, $ws2);
 my ($A, $B, $tmp);
+my ($A_id, $B_id);
+
+sub move_subtest {
+    my ($cb, $win) = @_;
+
+    my @events = events_for($cb, 'window');
+    my @move = grep { $_->{change} eq 'move' } @events;
+
+    is(scalar @move, 1, 'Received 1 window::move event');
+    is($move[0]->{container}->{window}, $A->{id}, "window id matches");
+}
 
 ###############################################################################
 # Drag floating container onto an empty workspace.
@@ -70,29 +81,32 @@ my ($A, $B, $tmp);
 
 $ws2 = fresh_workspace(output => 1);
 $ws1 = fresh_workspace(output => 0);
-open_floating_window(rect => [ 30, 30, 50, 50 ]);
-$A = get_focused($ws1);
+$A = open_floating_window(rect => [ 30, 30, 50, 50 ]);
 
 start_drag(40, 40);
 end_drag(1050, 50);
 
-is(get_focused($ws2), $A, 'Floating window moved to the right workspace');
+is($x->input_focus, $A->id, 'Floating window moved to the right workspace');
 is($ws2, focused_ws, 'Empty workspace focused after floating window dragged to it');
 
 ###############################################################################
 # Drag tiling container onto an empty workspace.
 ###############################################################################
 
+subtest "Draging tiling container onto an empty workspace produces move event", \&move_subtest,
+sub {
+
 $ws2 = fresh_workspace(output => 1);
 $ws1 = fresh_workspace(output => 0);
-open_window;
-$A = get_focused($ws1);
+$A = open_window;
 
 start_drag(50, 50);
 end_drag(1050, 50);
 
-is(get_focused($ws2), $A, 'Tiling window moved to the right workspace');
+is($x->input_focus, $A->id, 'Tiling window moved to the right workspace');
 is($ws2, focused_ws, 'Empty workspace focused after tiling window dragged to it');
+
+};
 
 ###############################################################################
 # Drag tiling container onto a container that closes before the drag is
@@ -119,58 +133,73 @@ is(@{get_ws_content($ws1)}, 1, 'One container left in ws1');
 # Drag tiling container onto a tiling container on an other workspace.
 ###############################################################################
 
+subtest "Draging tiling container onto a tiling container on an other workspace produces move event", \&move_subtest,
+sub {
+
 $ws2 = fresh_workspace(output => 1);
 open_window;
-$B = get_focused($ws2);
+$B_id = get_focused($ws2);
 $ws1 = fresh_workspace(output => 0);
-open_window;
-$A = get_focused($ws1);
+$A = open_window;
+$A_id = get_focused($ws1);
 
 start_drag(50, 50);
 end_drag(1500, 250);  # Center of right output, inner region.
 
 is($ws2, focused_ws, 'Workspace focused after tiling window dragged to it');
 $ws2 = get_ws($ws2);
-is($ws2->{focus}[0], $A, 'A focused first, dragged container kept focus');
-is($ws2->{focus}[1], $B, 'B focused second');
+is($ws2->{focus}[0], $A_id, 'A focused first, dragged container kept focus');
+is($ws2->{focus}[1], $B_id, 'B focused second');
+
+};
 
 ###############################################################################
 # Drag tiling container onto a floating container on an other workspace.
 ###############################################################################
 
+subtest "Draging tiling container onto a floating container on an other workspace produces move event", \&move_subtest,
+sub {
+
 $ws2 = fresh_workspace(output => 1);
 open_floating_window;
-$B = get_focused($ws2);
+$B_id = get_focused($ws2);
 $ws1 = fresh_workspace(output => 0);
-open_window;
-$A = get_focused($ws1);
+$A = open_window;
+$A_id = get_focused($ws1);
 
 start_drag(50, 50);
 end_drag(1500, 250);
 
 is($ws2, focused_ws, 'Workspace with one floating container focused after tiling window dragged to it');
 $ws2 = get_ws($ws2);
-is($ws2->{focus}[0], $A, 'A focused first, dragged container kept focus');
-is($ws2->{floating_nodes}[0]->{nodes}[0]->{id}, $B, 'B exists & floating');
+is($ws2->{focus}[0], $A_id, 'A focused first, dragged container kept focus');
+is($ws2->{floating_nodes}[0]->{nodes}[0]->{id}, $B_id, 'B exists & floating');
+
+};
 
 ###############################################################################
 # Drag tiling container onto a bar.
 ###############################################################################
 
+subtest "Draging tiling container onto a bar produces move event", \&move_subtest,
+sub {
+
 $ws1 = fresh_workspace(output => 0);
 open_window;
-$A = get_focused($ws1);
+$B_id = get_focused($ws1);
 $ws2 = fresh_workspace(output => 1);
-open_window;
-$B = get_focused($ws2);
+$A = open_window;
+$A_id = get_focused($ws2);
 
 start_drag(1500, 250);
 end_drag(1, 498);  # Bar on bottom of left output.
 
 is($ws1, focused_ws, 'Workspace focused after tiling window dragged to its bar');
 $ws1 = get_ws($ws1);
-is($ws1->{focus}[0], $B, 'B focused first, dragged container kept focus');
-is($ws1->{focus}[1], $A, 'A focused second');
+is($ws1->{focus}[0], $A_id, 'B focused first, dragged container kept focus');
+is($ws1->{focus}[1], $B_id, 'A focused second');
+
+};
 
 ###############################################################################
 # Drag an unfocused tiling container onto it's self.
@@ -178,35 +207,40 @@ is($ws1->{focus}[1], $A, 'A focused second');
 
 $ws1 = fresh_workspace(output => 0);
 open_window;
-$A = get_focused($ws1);
+$A_id = get_focused($ws1);
 open_window;
-$B = get_focused($ws1);
+$B_id = get_focused($ws1);
 
 start_drag(50, 50);
 end_drag(450, 450);
 
 $ws1 = get_ws($ws1);
-is($ws1->{focus}[0], $B, 'B focused first, kept focus');
-is($ws1->{focus}[1], $A, 'A focused second, unfocused dragged container didn\'t gain focus');
+is($ws1->{focus}[0], $B_id, 'B focused first, kept focus');
+is($ws1->{focus}[1], $A_id, 'A focused second, unfocused dragged container didn\'t gain focus');
 
 ###############################################################################
 # Drag an unfocused tiling container onto an occupied workspace.
 ###############################################################################
 
+subtest "Draging unfocused tiling container onto an occupied workspace produces move event", \&move_subtest,
+sub {
+
 $ws1 = fresh_workspace(output => 0);
-open_window;
-$A = get_focused($ws1);
+$A = open_window;
+$A_id = get_focused($ws1);
 $ws2 = fresh_workspace(output => 1);
 open_window;
-$B = get_focused($ws2);
+$B_id = get_focused($ws2);
 
 start_drag(50, 50);
 end_drag(1500, 250);  # Center of right output, inner region.
 
 is($ws2, focused_ws, 'Workspace remained focused after dragging unfocused container');
 $ws2 = get_ws($ws2);
-is($ws2->{focus}[0], $B, 'B focused first, kept focus');
-is($ws2->{focus}[1], $A, 'A focused second, unfocused container didn\'t steal focus');
+is($ws2->{focus}[0], $B_id, 'B focused first, kept focus');
+is($ws2->{focus}[1], $A_id, 'A focused second, unfocused container didn\'t steal focus');
+
+};
 
 ###############################################################################
 # Drag fullscreen container onto window in same workspace.
@@ -214,20 +248,22 @@ is($ws2->{focus}[1], $A, 'A focused second, unfocused container didn\'t steal fo
 
 $ws1 = fresh_workspace(output => 0);
 open_window;
-open_window;
+$A = open_window;
 cmd 'fullscreen enable';
-$A = get_focused($ws1);
 
 start_drag(900, 100);  # Second window
 end_drag(50, 50);  # To first window
 
 is($ws1, focused_ws, 'Workspace remained focused after dragging fullscreen container');
 is_num_fullscreen($ws1, 1, 'Container still fullscreened');
-is(get_focused($ws1), $A, 'Fullscreen container still focused');
+is($x->input_focus, $A->id, 'Fullscreen container still focused');
 
 ###############################################################################
 # Drag unfocused fullscreen container onto window in other workspace.
 ###############################################################################
+
+subtest "Draging unfocused fullscreen container onto window in other workspace produces move event", \&move_subtest,
+sub {
 
 $ws1 = fresh_workspace(output => 0);
 $A = open_window;
@@ -246,12 +282,17 @@ is($x->input_focus, $A->id, 'Fullscreen container now focused');
 $ws2 = get_ws($ws2);
 is($ws2->{nodes}->[0]->{window}, $A->id, 'Fullscreen container now leftmost window in second workspace');
 
+};
+
 ###############################################################################
 # Drag unfocused fullscreen container onto left outter region of window in
 # other workspace. The container shouldn't end up in $ws2 because it was
 # dragged onto the outter region of the leftmost window. We must also check
 # that the focus remains on the other window.
 ###############################################################################
+
+subtest "Draging unfocused fullscreen container onto left outter region of window in other workspace produces move event", \&move_subtest,
+sub {
 
 $ws1 = fresh_workspace(output => 0);
 open_window for (1..3);
@@ -271,6 +312,8 @@ is($x->input_focus, $B->id, 'Window of second workspace still has focus');
 is(get_focused($ws1), $tmp, 'Fullscreen container still focused in first workspace');
 $ws1 = get_ws($ws1);
 is($ws1->{nodes}->[3]->{window}, $A->id, 'Fullscreen container still rightmost window in first workspace');
+
+};
 
 ###############################################################################
 # Disable tiling drag through the config option.
