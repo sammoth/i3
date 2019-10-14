@@ -27,7 +27,7 @@ focus_follows_mouse no
 floating_modifier Mod1
 
 # 2 side by side outputs
-fake-outputs ${width}x${height}+0+0,${width}x${height}+${width}+0
+fake-outputs ${width}x${height}+0+0P,${width}x${height}+${width}+0
 
 bar {
     output primary
