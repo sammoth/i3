@@ -530,6 +530,7 @@ i3_SOURCES = \
 	include/sighandler.h \
 	include/startup.h \
 	include/sync.h \
+	include/tiling_drag.h \
 	include/tree.h \
 	include/util.h \
 	include/window.h \
@@ -573,6 +574,7 @@ i3_SOURCES = \
 	src/sighandler.c \
 	src/startup.c \
 	src/sync.c \
+	src/tiling_drag.c \
 	src/tree.c \
 	src/util.c \
 	src/version.c \
